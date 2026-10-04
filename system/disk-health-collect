@@ -298,7 +298,7 @@ def report():
     for dev in devices:
         summary, rc, data = read_drive(dev, {})
         if isinstance(data, dict) and not version:
-            version = " ".join(str(v) for v in ((data.get("smartctl") or {}).get("version") or []))
+            version = ".".join(str(v) for v in ((data.get("smartctl") or {}).get("version") or []))
         entries.append({"device": dev["name"], "smartctl_exit": rc,
                         "smartctl": redact(data), "summary": redact(summary)})
     json.dump({
