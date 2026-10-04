@@ -1,4 +1,4 @@
-# disk-health
+# Disk health for Omarchy
 
 SMART disk-health monitoring for [Omarchy](https://omarchy.org/). It runs an
 hourly check of every drive, notifies you when one develops a problem, and has
@@ -9,66 +9,65 @@ dials for each drive.
 
 ## Install
 
-Requires Omarchy (Arch Linux + the Omarchy shell). Your user must be in the
-`wheel` group for the panel's "Check Now" button to work without a password.
+    omarchy plugin add <repo-url> --enable
 
-    git clone <this repo> ~/projects/disk-health
-    cd ~/projects/disk-health
-    ./install.sh
+Reading SMART data needs root, which a plugin can't get on its own, so there is
+a one-time setup. A notification will prompt you; click it (or run
+`omarchy-shell shell summon skalawag.disk-health`), press **Set Up**, and enter
+your password. After that, open the panel from **Menu → System → Disk Health**.
 
-The script asks for sudo for the root-side parts. Re-run it after pulling or
-editing; it only changes what differs, and only asks for sudo when root-side
-files changed. `./install.sh --user-only` skips the root side.
+Your user must be in the `wheel` group for **Check Now** to work without a password.
 
-Then open **Menu → System → Disk Health**.
-
-### What install.sh changes
+### What setup installs
 
 | Where | What |
 |-------|------|
-| pacman | installs `smartmontools` (if missing) |
-| `/usr/local/bin/disk-health-collect` | the collector |
-| `/etc/systemd/system/disk-health.{service,timer}` | runs the collector at boot + hourly (timer enabled) |
+| pacman | `smartmontools`, if missing |
+| `/usr/local/bin/disk-health-collect` | the collector (reads drives, never writes to them) |
+| `/usr/local/bin/disk-health-uninstall` | removes all of the system components below |
+| `/etc/systemd/system/disk-health.{service,timer}` | runs the collector 2 min after boot and hourly |
 | `/etc/polkit-1/rules.d/50-disk-health.rules` | lets `wheel` users start `disk-health.service` without a password |
-| `/var/lib/disk-health/` | `status.json` (results) and `installed.sha256` (what was installed) |
-| `~/.config/omarchy/plugins/skalawag.disk-health{,-monitor}/` | the two shell plugins (copied; Omarchy doesn't allow symlinked plugins), enabled in `shell.json` |
-| `~/.config/omarchy/extensions/omarchy-menu.jsonc` | one line for the menu entry (backup made first) |
+| `/var/lib/disk-health/` | `status.json` (results) and `installed.sha256` (what's installed) |
+| `~/.config/omarchy/extensions/omarchy-menu.jsonc` | one line for the menu entry (backup made first; hides itself if the plugin is removed) |
 
-### Uninstall
+Setup runs `system/setup.sh install` from the plugin folder through `pkexec`.
+Read it before you run it.
 
-    ./uninstall.sh
+### Updating
 
-Removes all of the above except `smartmontools` (`sudo pacman -R smartmontools`
-if you don't need it), plus the alert state in `~/.local/state/disk-health/`.
+    omarchy plugin update skalawag.disk-health
+
+If the update changed the system components, you'll get a notification and the
+panel will show an **Update** button.
+
+### Removing
+
+1. In the panel, click **Remove System Components** (twice, to confirm) and authenticate.
+2. `omarchy plugin remove skalawag.disk-health`
+
+If you removed the plugin first, `sudo disk-health-uninstall` removes the system
+components. `smartmontools` stays installed (`sudo pacman -R smartmontools`), and
+the menu line stays (hidden) until you delete it.
 
 ## How it works
 
-```
-collector/   root side: disk-health-collect, systemd service + timer, polkit rule
-plugins/     skalawag.disk-health (panel), skalawag.disk-health-monitor (alerts)
-menu-entry.jsonc
-tests/       fake smartctl + test runner
-```
+1. **Collector (root)**: `disk-health.timer` runs `disk-health-collect`, which reads
+   every drive with `smartctl --json` and writes `/var/lib/disk-health/status.json`
+   (world-readable). Sleeping drives aren't woken; their previous reading is kept.
+2. **Alert service** (`Service.qml`): watches the status file and sends a notification
+   when a drive gets a *new* problem, when checks have stopped for over 26 hours, or
+   when setup or an update is needed. Numbers are ignored when comparing, so 57 → 58 °C
+   doesn't re-alert, but growing reallocated sectors does. Notifications stay on screen
+   until dismissed; clicking one opens the panel. Already-alerted problems are kept in
+   `~/.local/state/disk-health/alerted.json`.
+3. **Panel** (`Panel.qml`): per-drive dials and figures. Esc closes it; Enter or
+   **Check Now** runs a fresh check.
 
-1. **Collector (root)**: `disk-health.timer` runs `disk-health-collect` 2 minutes
-   after boot and hourly. It reads every drive with `smartctl --json` and writes
-   `/var/lib/disk-health/status.json` (world-readable). Drives that are asleep are
-   not woken; their previous reading is kept.
-2. **Alert service**: `skalawag.disk-health-monitor` watches the status file and sends
-   a notification when a drive gets a *new* problem, or when checks have stopped for
-   over 26 hours. Numbers are ignored when comparing, so 57 → 58 °C doesn't re-alert,
-   but growing reallocated sectors does. Clicking the notification opens the panel.
-   Already-alerted problems are remembered in `~/.local/state/disk-health/alerted.json`.
-3. **Panel**: `skalawag.disk-health`. Open it from the menu, a notification, or
-   `omarchy-shell shell summon skalawag.disk-health`. Esc closes it; Enter or
-   "Check Now" runs a fresh check.
-
-Only the collector runs as root, and it only reads from drives. The desktop side
-never needs privileges.
+Only the collector runs as root. The plugin itself never has privileges.
 
 ## Thresholds
 
-Set in `collector/disk-health-collect`:
+Set in `system/disk-health-collect`:
 
 | Level    | Condition |
 |----------|-----------|
@@ -83,21 +82,22 @@ hide it) show as "No SMART data" and never alert.
 
 Tested on real hardware with an NVMe SSD and a USB-attached SATA hard drive. SATA
 SSD wear is read from `endurance_used` when smartctl provides it, otherwise from
-common vendor attributes (231, 233, 177, 202); that path is exercised only by
-reasoning, not by a real drive. RAID controllers, multiple NVMe namespaces, and
-SAS drives are untested. Reports and fixtures from other hardware are welcome:
-`sudo smartctl --json -a /dev/<drive>` output is what the tests need.
+common vendor attributes (231, 233, 177, 202); that path hasn't been tried on a real
+drive. RAID controllers, multiple NVMe namespaces, and SAS drives are untested.
+Reports from other hardware are welcome; `sudo smartctl --json -a /dev/<drive>`
+output is what a test fixture needs.
 
-## Testing
+## Development
 
-    tests/run.sh                                  # collector against fake drives + plugin validation
-    omarchy-shell diskhealth simulate             # fake alert → click → panel
+    tests/run.sh                  # collector against fake drives, manifest validation
+    ./install.sh                  # deploy this working copy, incl. uncommitted edits
+    ./uninstall.sh                # remove everything (the repo stays)
+    omarchy-shell diskhealth simulate   # fake alert → click → panel
+    omarchy-shell diskhealth status     # what the alert service last saw
     omarchy-shell shell summon skalawag.disk-health '{"statusPath":"/path/to/status.json"}'
-    omarchy-shell diskhealth status               # what the alert service last saw
-    systemctl status disk-health.timer
 
-Note that edits to the alert service only take effect after `omarchy restart shell`
-(install.sh does this for you); panel edits reload on save.
+`install.sh` refuses to overwrite a copy installed with `omarchy plugin add`; use
+`omarchy plugin update` for that, or remove it first.
 
 ## License
 

@@ -217,8 +217,10 @@ Item {
       var action = root.setupBusy
       root.setupExit = exitCode
       root.setupBusy = ""
-      if (exitCode === 0) {
-        Util.execArgv(["bash", root.menuScript, action === "remove" ? "remove" : "add"])
+      // The menu entry stays on removal, so the panel (and Set Up) is still
+      // reachable; it hides itself once the plugin folder is gone.
+      if (exitCode === 0 && action === "install") {
+        Util.execArgv(["bash", root.menuScript, "add"])
       } else if (exitCode === 127) {
         root.error = "Not authorized to change system components"
       } else if (exitCode !== 126 && root.error === "") {
@@ -361,7 +363,7 @@ Item {
 
             Text {
               textFormat: Text.PlainText
-              text: "•  smartmontools (from the Arch repos)\n•  /usr/local/bin/disk-health-collect, and disk-health-uninstall\n•  disk-health.service + an hourly disk-health.timer\n•  a polkit rule so wheel users can run \"Check Now\" without a password\n•  a Disk Health entry in Menu → System"
+              text: "•  smartmontools (from the Arch repos)\n•  /usr/local/bin/disk-health-collect, and disk-health-uninstall\n•  disk-health.service + an hourly disk-health.timer\n•  a polkit rule so wheel users can run \"Check Now\" without a password\n•  a Disk Health entry in Menu → System (if it isn't there yet)"
               color: root.onScrimDim
               font.family: Style.font.family
               font.pixelSize: Style.font.bodySmall
@@ -488,7 +490,7 @@ Item {
             text: root.setupBusy === "remove" ? "Removing…"
               : root.confirmRemove ? "Click again to remove system components"
               : "Remove System Components"
-            tooltipText: "Uninstall the collector, timer, polkit rule and menu entry (asks for your password)"
+            tooltipText: "Uninstall the collector, timer and polkit rule (asks for your password)"
             enabled: root.setupBusy === ""
             foreground: root.confirmRemove ? root.urgentColor : root.onScrimFaint
             fontFamily: Style.font.family

@@ -43,9 +43,12 @@ Item {
     return problem.level + ":" + text.replace(/\d+/g, "#")
   }
 
-  function notify(urgency, headline, body) {
+  // Everything this sends asks the user to act, so it uses critical urgency:
+  // in Omarchy that's the only level whose popup stays until dismissed
+  // (it does not bypass do-not-disturb for a named app like this one).
+  function notify(headline, body) {
     Util.execArgv(["omarchy-notification-send", "--app-name", "Disk health",
-      "-u", urgency, "-g", root.glyph, headline, body, "--exec"].concat(root.openArgv))
+      "-u", "critical", "-g", root.glyph, headline, body, "--exec"].concat(root.openArgv))
   }
 
   function saveAlerted() {
@@ -108,8 +111,7 @@ Item {
     }
 
     if (lines.length > 0) {
-      notify(worst === "critical" ? "critical" : "normal",
-        worst === "critical" ? "Disk problem detected" : "Disk health warning",
+      notify(worst === "critical" ? "Disk problem detected" : "Disk health warning",
         lines.join("\n"))
     }
     return next
@@ -125,10 +127,10 @@ Item {
     } else {
       next["__setup"] = [state]
       if (state === "missing")
-        notify("normal", "Disk health needs a one-time setup",
+        notify("Disk health needs a one-time setup",
           "Click to set up disk monitoring (installs smartmontools and an hourly check).")
       else
-        notify("normal", "Disk health needs an update",
+        notify("Disk health needs an update",
           "The plugin was updated. Click to update its system components.")
     }
     root.alerted = next
@@ -174,6 +176,7 @@ Item {
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.evaluate()
+    onLoadFailed: root.lastSummary = "no data"
   }
 
   // The collector replaces the file atomically, which can drop the watch, and
