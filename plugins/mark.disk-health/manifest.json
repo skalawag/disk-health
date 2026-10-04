@@ -3,7 +3,7 @@
   "id": "mark.disk-health",
   "name": "Disk health",
   "version": "1.0.0",
-  "author": "mark",
+  "author": "skalawag",
   "description": "Per-drive SMART health dials and details. Summon with: omarchy-shell shell summon mark.disk-health",
   "kinds": [
     "panel"
