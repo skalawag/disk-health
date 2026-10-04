@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "mark.disk-health-monitor",
+  "name": "Disk health monitor",
+  "version": "1.0.0",
+  "author": "mark",
+  "description": "Watches /var/lib/disk-health/status.json and sends a notification when a disk develops a problem. Click the notification to open mark.disk-health.",
+  "kinds": [
+    "service"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml"
+  }
+}

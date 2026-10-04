@@ -1,0 +1,8 @@
+#!/bin/bash
+args="$*"
+case "$args" in
+*--scan-open*) echo '{"devices":[{"name":"/dev/nvme0","type":"nvme","protocol":"NVMe"},{"name":"/dev/sda","type":"sat","protocol":"ATA"},{"name":"/dev/sdb","type":"sat","protocol":"ATA"}]}' ;;
+*nvme0*) echo '{"device":{"name":"/dev/nvme0","protocol":"NVMe"},"model_name":"Samsung SSD 990 PRO 2TB","serial_number":"S7KHNJ0X","firmware_version":"4B2QJXD7","user_capacity":{"bytes":2000398934016},"smart_status":{"passed":true,"nvme":{"value":0}},"temperature":{"current":41,"op_limit_max":82,"critical_limit_max":85},"power_on_time":{"hours":1532},"power_cycle_count":611,"nvme_smart_health_information_log":{"critical_warning":0,"temperature":41,"available_spare":100,"available_spare_threshold":10,"percentage_used":2,"data_units_written":41234567,"power_cycles":611,"power_on_hours":1532,"unsafe_shutdowns":37,"media_errors":0,"num_err_log_entries":12}}'; exit 0 ;;
+*sda*) echo '{"smartctl":{"messages":[{"string":"/dev/sda: Unknown USB bridge [0x1058:0x2620 (0x1021)]","severity":"error"}]},"device":{"name":"/dev/sda","protocol":"ATA"}}'; exit 2 ;;
+*sdb*) echo '{"device":{"name":"/dev/sdb","protocol":"ATA"},"model_name":"WDC WD20EZRZ","serial_number":"WD-OLD","smart_status":{"passed":true},"temperature":{"current":57},"power_on_time":{"hours":41000},"power_cycle_count":2000,"ata_smart_attributes":{"table":[{"id":5,"name":"Reallocated_Sector_Ct","value":190,"worst":190,"thresh":140,"when_failed":"","raw":{"value":'"${REALLOC:-12}"'}},{"id":197,"name":"Current_Pending_Sector","value":200,"worst":200,"thresh":0,"when_failed":"","raw":{"value":3}}]}}'; exit 64 ;;
+esac

@@ -1,0 +1,10 @@
+// Let mark refresh disk health (the panel's "Check Now" button) without a
+// password. Only allows *starting* the one read-only collector unit.
+polkit.addRule(function(action, subject) {
+  if (action.id == "org.freedesktop.systemd1.manage-units" &&
+      action.lookup("unit") == "disk-health.service" &&
+      action.lookup("verb") == "start" &&
+      subject.user == "mark" && subject.local && subject.active) {
+    return polkit.Result.YES;
+  }
+});

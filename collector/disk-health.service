@@ -1,0 +1,15 @@
+[Unit]
+Description=Collect disk SMART health for the desktop disk-health monitor
+Documentation=file:///home/mark/projects/omarchy/disk-health/README.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/disk-health-collect
+StateDirectory=disk-health
+StateDirectoryMode=0755
+Nice=10
+IOSchedulingClass=idle
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
