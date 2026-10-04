@@ -5,6 +5,8 @@ hourly check of every drive, notifies you when one develops a problem, and has
 a panel styled like Omarchy's disk speed test with temperature and lifespan
 dials for each drive.
 
+![Disk health panel showing two healthy drives](docs/screenshot.png)
+
 ## Install
 
 Requires Omarchy (Arch Linux + the Omarchy shell). Your user must be in the
