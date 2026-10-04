@@ -11,7 +11,7 @@ mode=${1:-all}
 
 plugin_dir="$HOME/.config/omarchy/plugins"
 menu_file="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
-plugins=(mark.disk-health mark.disk-health-monitor)
+plugins=(skalawag.disk-health skalawag.disk-health-monitor)
 
 # Checksums of the repo files as last installed. The polkit rules folder isn't
 # readable without root, so "is root up to date?" compares against this.
@@ -65,7 +65,7 @@ install_user() {
     if [[ -n $changes ]]; then
       echo "Updated plugin $id"
       # Kept-loaded services don't fully hot-reload; panels do.
-      [[ $id == mark.disk-health-monitor ]] && restart=1
+      [[ $id == skalawag.disk-health-monitor ]] && restart=1
     fi
   done
 

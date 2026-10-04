@@ -24,7 +24,7 @@ Item {
 
   readonly property string defaultStatusPath: "/var/lib/disk-health/status.json"
   // A summon payload may point at another file, for testing:
-  // omarchy-shell shell summon mark.disk-health '{"statusPath":"/tmp/x.json"}'
+  // omarchy-shell shell summon skalawag.disk-health '{"statusPath":"/tmp/x.json"}'
   property string statusPath: defaultStatusPath
 
   property bool opened: false
@@ -59,7 +59,7 @@ Item {
 
   function dismiss() {
     if (shell && typeof shell.hide === "function")
-      shell.hide((manifest && manifest.id) || "mark.disk-health")
+      shell.hide((manifest && manifest.id) || "skalawag.disk-health")
     else close()
   }
 
@@ -193,7 +193,7 @@ Item {
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.namespace: "mark-disk-health"
+    WlrLayershell.namespace: "skalawag-disk-health"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 

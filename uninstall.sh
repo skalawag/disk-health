@@ -15,7 +15,7 @@ if [[ ${1:-} == --root-only ]]; then
   exit 0
 fi
 
-for id in mark.disk-health-monitor mark.disk-health; do
+for id in skalawag.disk-health-monitor skalawag.disk-health; do
   omarchy plugin disable "$id" 2>/dev/null || true
   rm -rf "${plugin_dir:?}/$id"
 done

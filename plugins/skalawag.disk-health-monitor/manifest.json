@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "id": "mark.disk-health-monitor",
+  "id": "skalawag.disk-health-monitor",
   "name": "Disk health monitor",
   "version": "1.0.0",
   "author": "skalawag",
-  "description": "Watches /var/lib/disk-health/status.json and sends a notification when a disk develops a problem. Click the notification to open mark.disk-health.",
+  "description": "Watches /var/lib/disk-health/status.json and sends a notification when a disk develops a problem. Click the notification to open skalawag.disk-health.",
   "kinds": [
     "service"
   ],

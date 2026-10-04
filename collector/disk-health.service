@@ -1,6 +1,6 @@
 [Unit]
 Description=Collect disk SMART health for the desktop disk-health monitor
-Documentation=file:///home/mark/projects/omarchy/disk-health/README.md
+Documentation=man:smartctl(8)
 
 [Service]
 Type=oneshot

@@ -1,1 +1,1 @@
-  "system.disk-health": {"icon":"󰋊","label":"Disk Health","aliases":["disk-health","smart"],"description":"SMART status of every drive","action":"omarchy-shell shell summon mark.disk-health"},
+  "system.disk-health": {"icon":"󰋊","label":"Disk Health","aliases":["disk-health","smart"],"description":"SMART status of every drive","action":"omarchy-shell shell summon skalawag.disk-health"},
