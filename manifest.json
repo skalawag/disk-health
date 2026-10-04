@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "skalawag.disk-health",
+  "name": "Disk health",
+  "version": "1.0.0",
+  "author": "skalawag",
+  "description": "SMART disk-health monitoring: hourly checks of every drive, a notification when one develops a problem, and a panel with temperature and lifespan dials. Needs a one-time setup (prompted on first run) that installs smartmontools and a root-side collector.",
+  "kinds": [
+    "service",
+    "panel"
+  ],
+  "entryPoints": {
+    "service": "Service.qml",
+    "panel": "Panel.qml"
+  }
+}

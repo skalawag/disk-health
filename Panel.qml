@@ -15,7 +15,12 @@ import qs.Ui
 //
 // Data comes from /var/lib/disk-health/status.json, written hourly by the
 // root-side disk-health.service. "Check Now" starts that unit, which a polkit
-// rule lets this user do without a password.
+// rule lets wheel users do without a password.
+//
+// The root-side parts aren't installed by `omarchy plugin add`, so the panel
+// also manages them: on first run it shows a setup screen whose button runs
+// system/setup.sh through pkexec (and adds the menu entry); after a plugin
+// update it offers "Update"; and "Remove System Components" undoes it all.
 Item {
   id: root
 
@@ -26,6 +31,13 @@ Item {
   // A summon payload may point at another file, for testing:
   // omarchy-shell shell summon skalawag.disk-health '{"statusPath":"/tmp/x.json"}'
   property string statusPath: defaultStatusPath
+
+  readonly property string setupScript: pluginPath("system/setup.sh")
+  readonly property string menuScript: pluginPath("system/menu.sh")
+  property string setupState: "unknown"   // ok | outdated | missing
+  property string setupBusy: ""           // "install" | "remove" while pkexec runs
+  property int setupExit: 0
+  property bool confirmRemove: false
 
   property bool opened: false
   property var report: null
@@ -49,8 +61,33 @@ Item {
     try { payload = JSON.parse(payloadJson || "{}") || {} } catch (e) {}
     statusPath = payload.statusPath || defaultStatusPath
     opened = true
+    confirmRemove = false
     nowEpoch = Date.now() / 1000
+    probeSetup()
     statusFile.reload()
+  }
+
+  function pluginPath(relative) {
+    return decodeURIComponent(Qt.resolvedUrl(relative).toString().replace(/^file:\/\//, ""))
+  }
+
+  function probeSetup() {
+    if (!setupProbe.running) setupProbe.running = true
+  }
+
+  function runSetup(action) {
+    if (setupBusy !== "") return
+    error = ""
+    confirmRemove = false
+    setupBusy = action
+    setupProc.command = ["pkexec", "/usr/bin/bash", setupScript, action]
+    setupProc.running = true
+  }
+
+  function primaryAction() {
+    if (setupState === "missing") runSetup("install")
+    else if (setupState === "outdated") runSetup("install")
+    else checkNow()
   }
 
   function close() {
@@ -151,9 +188,46 @@ Item {
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.parseReport()
-    onLoadFailed: {
-      root.report = null
-      root.error = "No disk-health data yet. Run: ~/projects/omarchy/disk-health/install.sh"
+    onLoadFailed: root.report = null
+  }
+
+  Process {
+    id: setupProbe
+    command: ["bash", root.setupScript, "status"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var state = String(line).trim()
+        if (state === "ok" || state === "outdated" || state === "missing") root.setupState = state
+      }
+    }
+  }
+
+  // pkexec asks for the password through Omarchy's polkit agent. 126 means
+  // the dialog was dismissed, 127 that authorization was refused.
+  Process {
+    id: setupProc
+    stderr: StdioCollector {
+      waitForEnd: true
+      onStreamFinished: {
+        var msg = String(text || "").trim().split("\n").pop()
+        if (root.setupExit !== 0 && root.setupExit !== 126 && msg !== "") root.error = msg
+      }
+    }
+    onExited: function(exitCode) {
+      var action = root.setupBusy
+      root.setupExit = exitCode
+      root.setupBusy = ""
+      if (exitCode === 0) {
+        Util.execArgv(["bash", root.menuScript, action === "remove" ? "remove" : "add"])
+      } else if (exitCode === 127) {
+        root.error = "Not authorized to change system components"
+      } else if (exitCode !== 126 && root.error === "") {
+        root.error = (action === "remove" ? "Removal" : "Setup") + " failed (exit " + exitCode + ")"
+      }
+      root.probeSetup()
+      statusFile.reload()
+      // Let the background service catch up (clears its setup notice).
+      Util.execArgv(["omarchy-shell", "-q", "diskhealth", "recheck"])
     }
   }
 
@@ -213,8 +287,8 @@ Item {
       focus: true
 
       Keys.onEscapePressed: root.dismiss()
-      Keys.onReturnPressed: root.checkNow()
-      Keys.onEnterPressed: root.checkNow()
+      Keys.onReturnPressed: root.primaryAction()
+      Keys.onEnterPressed: root.primaryAction()
 
       Item {
         id: cluster
@@ -256,7 +330,64 @@ Item {
             horizontalAlignment: Text.AlignHCenter
           }
 
+          // First run: what setup does, and the button that does it.
+          ColumnLayout {
+            visible: root.setupState === "missing"
+            spacing: Style.space(10)
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: Style.space(8)
+            Layout.maximumWidth: Style.space(440)
+
+            Text {
+              textFormat: Text.PlainText
+              text: "One-time setup needed"
+              color: root.onScrim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.title
+              font.bold: true
+              Layout.alignment: Qt.AlignHCenter
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              text: "Reading SMART data needs root, so setup installs a small read-only collector that checks your drives at boot and hourly. You'll be asked for your password once. It installs:"
+              color: root.onScrimDim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.Wrap
+              horizontalAlignment: Text.AlignHCenter
+              Layout.fillWidth: true
+            }
+
+            Text {
+              textFormat: Text.PlainText
+              text: "•  smartmontools (from the Arch repos)\n•  /usr/local/bin/disk-health-collect, and disk-health-uninstall\n•  disk-health.service + an hourly disk-health.timer\n•  a polkit rule so wheel users can run \"Check Now\" without a password\n•  a Disk Health entry in Menu → System"
+              color: root.onScrimDim
+              font.family: Style.font.family
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.Wrap
+              Layout.fillWidth: true
+            }
+
+            Button {
+              text: root.setupBusy === "install" ? "Setting Up…" : "Set Up"
+              tooltipText: "Install the system components (asks for your password)"
+              bordered: true
+              enabled: root.setupBusy === ""
+              opacity: root.setupBusy === "" ? 1 : 0.35
+              foreground: root.onScrim
+              fontFamily: Style.font.family
+              fontSize: Style.font.bodySmall
+              horizontalPadding: Style.space(14)
+              verticalPadding: Style.space(4)
+              Layout.alignment: Qt.AlignHCenter
+              Layout.topMargin: Style.space(6)
+              onClicked: root.runSetup("install")
+            }
+          }
+
           Row {
+            visible: root.setupState !== "missing"
             spacing: Style.space(64)
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: Style.space(8)
@@ -269,7 +400,18 @@ Item {
 
           Text {
             textFormat: Text.PlainText
-            visible: root.report !== null
+            visible: root.setupState === "ok" && root.report === null
+            text: "No data yet. The first check runs a couple of minutes after boot; or press Check Now."
+            color: root.onScrimDim
+            font.family: Style.font.family
+            font.pixelSize: Style.font.bodySmall
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+          }
+
+          Text {
+            textFormat: Text.PlainText
+            visible: root.setupState !== "missing" && root.report !== null
             text: root.checking ? "Checking drives…" : "Checked " + root.ago(root.report ? root.report.checked_at_epoch : 0)
             color: root.onScrimFaint
             font.family: Style.font.family
@@ -278,7 +420,35 @@ Item {
             horizontalAlignment: Text.AlignHCenter
           }
 
+          RowLayout {
+            visible: root.setupState === "outdated"
+            spacing: Style.space(12)
+            Layout.alignment: Qt.AlignHCenter
+
+            Text {
+              textFormat: Text.PlainText
+              text: "The plugin was updated; its system components need updating too."
+              color: root.warnColor
+              font.family: Style.font.family
+              font.pixelSize: Style.font.bodySmall
+            }
+
+            Button {
+              text: root.setupBusy === "install" ? "Updating…" : "Update"
+              tooltipText: "Reinstall the system components (asks for your password)"
+              bordered: true
+              enabled: root.setupBusy === ""
+              foreground: root.warnColor
+              fontFamily: Style.font.family
+              fontSize: Style.font.bodySmall
+              horizontalPadding: Style.space(10)
+              verticalPadding: Style.space(2)
+              onClicked: root.runSetup("install")
+            }
+          }
+
           Button {
+            visible: root.setupState !== "missing"
             text: "Check Now"
             tooltipText: "Re-read SMART data from every drive"
             bordered: true
@@ -309,6 +479,28 @@ Item {
             Layout.maximumWidth: Style.space(440)
             Layout.alignment: Qt.AlignHCenter
             horizontalAlignment: Text.AlignHCenter
+          }
+
+          // Undo setup. Needed before `omarchy plugin remove`, which only
+          // deletes the plugin folder. Two clicks, so it can't happen by accident.
+          Button {
+            visible: root.setupState === "ok" || root.setupState === "outdated"
+            text: root.setupBusy === "remove" ? "Removing…"
+              : root.confirmRemove ? "Click again to remove system components"
+              : "Remove System Components"
+            tooltipText: "Uninstall the collector, timer, polkit rule and menu entry (asks for your password)"
+            enabled: root.setupBusy === ""
+            foreground: root.confirmRemove ? root.urgentColor : root.onScrimFaint
+            fontFamily: Style.font.family
+            fontSize: Style.font.caption
+            horizontalPadding: Style.space(8)
+            verticalPadding: Style.space(2)
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: Style.space(12)
+            onClicked: {
+              if (root.confirmRemove) root.runSetup("remove")
+              else root.confirmRemove = true
+            }
           }
         }
       }

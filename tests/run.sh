@@ -5,7 +5,7 @@ set -euo pipefail
 here=$(dirname "$(readlink -f "$0")")
 out=$(mktemp -d); trap 'rm -rf "$out"' EXIT
 export SMARTCTL="$here/fake-smartctl" DISK_HEALTH_OUT="$out/status.json"
-collect="$here/../collector/disk-health-collect"
+collect="$here/../system/disk-health-collect"
 fails=0
 
 check() { # description, jq expression that must be true
@@ -26,9 +26,11 @@ check "growth since last check is reported" '.drives[2].problems | any(.text == 
 if [[ $(stat -c %a "$DISK_HEALTH_OUT") == 644 ]]; then echo "ok   status file is world-readable"
 else echo "FAIL status file is world-readable"; fails=$((fails + 1)); fi
 
-for p in "$here"/../plugins/*/; do
-  if omarchy-plugin-validate "$p" >/dev/null 2>&1; then echo "ok   plugin $(basename "$p") validates"
-  else echo "FAIL plugin $(basename "$p") validates"; fails=$((fails + 1)); fi
+if omarchy-plugin-validate "$here/.." >/dev/null 2>&1; then echo "ok   plugin manifest validates"
+else echo "FAIL plugin manifest validates"; fails=$((fails + 1)); fi
+
+for f in setup.sh menu.sh; do
+  if bash -n "$here/../system/$f"; then echo "ok   system/$f parses"; else echo "FAIL system/$f parses"; fails=$((fails + 1)); fi
 done
 
 ((fails == 0)) && echo "All tests passed." || { echo "$fails failed."; exit 1; }

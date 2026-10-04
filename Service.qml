@@ -14,6 +14,10 @@ import qs.Commons
 // growing reallocated sectors does. What was last alerted is kept in
 // ~/.local/state/disk-health/alerted.json, so shell restarts don't repeat it.
 //
+// It also checks whether the root-side components are installed and current
+// (system/setup.sh status) and, once per state, notifies that setup or an
+// update is needed; the panel has the button that does it.
+//
 // IPC: omarchy-shell diskhealth status | simulate
 Item {
   id: root
@@ -26,11 +30,13 @@ Item {
   readonly property int staleSeconds: 26 * 3600
   readonly property var openArgv: ["omarchy-shell", "shell", "summon", "skalawag.disk-health"]
   readonly property string glyph: "󰋊"
+  readonly property string setupScript: decodeURIComponent(Qt.resolvedUrl("system/setup.sh").toString().replace(/^file:\/\//, ""))
 
   // drive key (serial or device) → array of problem signatures last alerted.
   property var alerted: ({})
   property bool alertedLoaded: false
   property string lastSummary: "waiting for data"
+  property string setupState: "unknown"   // ok | outdated | missing
 
   function signature(problem) {
     var text = String(problem.text || "").replace(/ \(\+\d+ since last check\)/, "")
@@ -58,6 +64,7 @@ Item {
     }
     root.lastSummary = report.status + " at " + report.checked_at
     var next = assess(report, root.alerted)
+    if (root.alerted["__setup"]) next["__setup"] = root.alerted["__setup"]
     if (JSON.stringify(next) !== JSON.stringify(root.alerted)) {
       root.alerted = next
       saveAlerted()
@@ -108,6 +115,41 @@ Item {
     return next
   }
 
+  function setupChecked(state) {
+    root.setupState = state
+    var notified = root.alerted["__setup"] ? root.alerted["__setup"][0] : ""
+    if (state === notified) return
+    var next = JSON.parse(JSON.stringify(root.alerted))
+    if (state === "ok") {
+      delete next["__setup"]
+    } else {
+      next["__setup"] = [state]
+      if (state === "missing")
+        notify("normal", "Disk health needs a one-time setup",
+          "Click to set up disk monitoring (installs smartmontools and an hourly check).")
+      else
+        notify("normal", "Disk health needs an update",
+          "The plugin was updated. Click to update its system components.")
+    }
+    root.alerted = next
+    saveAlerted()
+  }
+
+  Process {
+    id: setupProbe
+    command: ["bash", root.setupScript, "status"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var state = String(line).trim()
+        if (state === "ok" || state === "outdated" || state === "missing") root.setupChecked(state)
+      }
+    }
+  }
+
+  function checkSetup() {
+    if (root.alertedLoaded && !setupProbe.running) setupProbe.running = true
+  }
+
   FileView {
     id: stateFile
     path: root.statePath
@@ -116,10 +158,12 @@ Item {
       try { root.alerted = JSON.parse(text()) || {} } catch (e) { root.alerted = {} }
       root.alertedLoaded = true
       statusFile.reload()
+      root.checkSetup()
     }
     onLoadFailed: {
       root.alertedLoaded = true
       statusFile.reload()
+      root.checkSetup()
     }
   }
 
@@ -138,14 +182,25 @@ Item {
     interval: 5 * 60 * 1000
     running: true
     repeat: true
-    onTriggered: statusFile.reload()
+    onTriggered: {
+      statusFile.reload()
+      root.checkSetup()
+    }
   }
 
   IpcHandler {
     target: "diskhealth"
 
     function status(): string {
-      return root.lastSummary
+      return root.lastSummary + " (setup: " + root.setupState + ")"
+    }
+
+    // The panel calls this after running setup, so the state (and any
+    // pending setup notification) catches up immediately.
+    function recheck(): string {
+      root.checkSetup()
+      statusFile.reload()
+      return "ok"
     }
 
     // Runs the alert logic on a made-up failing drive (nothing is saved), so
