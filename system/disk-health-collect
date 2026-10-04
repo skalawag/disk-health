@@ -7,10 +7,21 @@ file this writes, so nothing in the user session needs privileges.
 
 Each drive gets a status of ok, warning, critical, or unavailable plus a list
 of human-readable problems. The overall status is the worst of the drives.
-Drives that can't report SMART (e.g. a USB enclosure that hides it) are
-"unavailable", which is shown but never alerted on.
+Drives that can't report SMART (e.g. a USB enclosure that hides it), or whose
+data can't be understood, are "unavailable": shown, never alerted on, and
+never allowed to stop the other drives from being checked.
 
-Env overrides (for testing): DISK_HEALTH_OUT, SMARTCTL.
+Attribute numbers mean different things on different drives (202 is a
+lifespan figure on some SSDs and an error counter on some HDDs), so wear is
+read by the attribute *name* smartctl assigns from its drive database, never
+by number alone. A drive whose wear can't be identified shows no lifespan.
+
+  disk-health-collect            write the status file (what the timer runs)
+  disk-health-collect --report   print raw smartctl data + conclusions for
+                                 every drive, serial numbers removed, for
+                                 attaching to a bug report
+
+Env overrides (for testing): DISK_HEALTH_OUT, SMARTCTL, DISK_HEALTH_DRIVEDB.
 """
 
 import json
@@ -22,6 +33,10 @@ import time
 
 OUT = os.environ.get("DISK_HEALTH_OUT", "/var/lib/disk-health/status.json")
 SMARTCTL = os.environ.get("SMARTCTL", "smartctl")
+# Kept current weekly by disk-health-drivedb.timer; smartctl's built-in
+# database is used until the first update lands (or if updates fail).
+DRIVEDB = os.environ.get("DISK_HEALTH_DRIVEDB", "/var/lib/disk-health/drivedb.h")
+VERSION = "0.9.0"
 
 LEVELS = {"ok": 0, "unavailable": 0, "warning": 1, "critical": 2}
 
@@ -45,8 +60,30 @@ NVME_CRITICAL_WARNING_BITS = [
 ]
 
 
+# Wear attributes by name (from smartctl's drive database). "Remaining" ones
+# have a normalized value counting down from 100; "used" ones carry the
+# percentage used in the raw value.
+WEAR_REMAINING = {
+    "wear_leveling_count", "percent_lifetime_remain", "ssd_life_left",
+    "lifetime_left", "media_wearout_indicator", "remaining_lifetime_perc",
+}
+WEAR_USED_RAW = {"perc_rated_life_used", "percent_lifetime_used"}
+
+
+def as_int(value):
+    """An int, or None for anything that isn't a plain number."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
+
+
 def run_smartctl(args):
-    proc = subprocess.run([SMARTCTL, "--json=c", *args], capture_output=True, text=True)
+    drivedb = ["-B", DRIVEDB] if os.path.isfile(DRIVEDB) else []
+    proc = subprocess.run([SMARTCTL, "--json=c", *drivedb, *args], capture_output=True, text=True)
     try:
         data = json.loads(proc.stdout) if proc.stdout.strip() else {}
     except json.JSONDecodeError:
@@ -59,31 +96,34 @@ def smartctl_messages(data):
     return [m.get("string", "") for m in msgs if m.get("string")]
 
 
-def ata_attr(data, attr_id):
-    for row in (data.get("ata_smart_attributes") or {}).get("table") or []:
-        if row.get("id") == attr_id:
-            return row
-    return None
+def ata_rows(data):
+    table = (data.get("ata_smart_attributes") or {}).get("table")
+    return [row for row in table if isinstance(row, dict)] if isinstance(table, list) else []
 
 
 def ata_raw(data, attr_id):
-    row = ata_attr(data, attr_id)
-    if row is None:
-        return None
-    return (row.get("raw") or {}).get("value")
+    for row in ata_rows(data):
+        if row.get("id") == attr_id:
+            return as_int((row.get("raw") or {}).get("value"))
+    return None
 
 
 def life_used_pct(data, nvme):
-    if nvme.get("percentage_used") is not None:
-        return nvme["percentage_used"]
-    endurance = (data.get("endurance_used") or {}).get("current_percent")
-    if endurance is not None:
-        return endurance
-    # ATA SSD wear attributes: normalized value counts down from 100.
-    for attr_id in (231, 233, 177, 202):
-        row = ata_attr(data, attr_id)
-        if row and isinstance(row.get("value"), int) and 0 < row["value"] <= 100:
-            return 100 - row["value"]
+    # Standard, vendor-neutral figures first: NVMe "Percentage Used", then the
+    # ATA Device Statistics endurance indicator.
+    for value in (nvme.get("percentage_used"), (data.get("endurance_used") or {}).get("current_percent")):
+        if as_int(value) is not None:
+            return as_int(value)
+    for row in ata_rows(data):
+        name = str(row.get("name") or "").lower()
+        if name in WEAR_REMAINING:
+            value = as_int(row.get("value"))
+            if value is not None and 0 < value <= 100:
+                return 100 - value
+        elif name in WEAR_USED_RAW:
+            value = as_int((row.get("raw") or {}).get("value"))
+            if value is not None and 0 <= value <= 200:
+                return value
     return None
 
 
@@ -100,29 +140,29 @@ def summarize(dev, rc, data, previous):
         "firmware": data.get("firmware_version") or "",
         "capacity_bytes": (data.get("user_capacity") or {}).get("bytes"),
         "smart_passed": (data.get("smart_status") or {}).get("passed"),
-        "temperature_c": temp.get("current", nvme.get("temperature")),
+        "temperature_c": as_int(temp.get("current", nvme.get("temperature"))),
         "life_used_pct": life_used_pct(data, nvme),
-        "spare_pct": nvme.get("available_spare"),
-        "spare_threshold_pct": nvme.get("available_spare_threshold"),
-        "power_on_hours": (data.get("power_on_time") or {}).get("hours", nvme.get("power_on_hours")),
-        "power_cycles": data.get("power_cycle_count", nvme.get("power_cycles")),
-        "unsafe_shutdowns": nvme.get("unsafe_shutdowns"),
-        "media_errors": nvme.get("media_errors"),
-        "error_log_entries": nvme.get("num_err_log_entries"),
+        "spare_pct": as_int(nvme.get("available_spare")),
+        "spare_threshold_pct": as_int(nvme.get("available_spare_threshold")),
+        "power_on_hours": as_int((data.get("power_on_time") or {}).get("hours", nvme.get("power_on_hours"))),
+        "power_cycles": as_int(data.get("power_cycle_count", nvme.get("power_cycles"))),
+        "unsafe_shutdowns": as_int(nvme.get("unsafe_shutdowns")),
+        "media_errors": as_int(nvme.get("media_errors")),
+        "error_log_entries": as_int(nvme.get("num_err_log_entries")),
         "reallocated_sectors": ata_raw(data, 5),
         "pending_sectors": ata_raw(data, 197),
         "offline_uncorrectable": ata_raw(data, 198),
-        "data_written_bytes": nvme["data_units_written"] * 512000 if nvme.get("data_units_written") is not None else None,
+        "data_written_bytes": as_int(nvme.get("data_units_written")) * 512000 if as_int(nvme.get("data_units_written")) is not None else None,
         "status": "ok",
         "problems": [],
         "note": "",
     }
 
     defaults = DEFAULT_TEMP["NVMe" if protocol == "NVMe" else "ATA"]
-    drive["temperature_warn_c"] = temp.get("op_limit_max") or defaults[0]
-    drive["temperature_crit_c"] = temp.get("critical_limit_max") or defaults[1]
+    drive["temperature_warn_c"] = as_int(temp.get("op_limit_max")) or defaults[0]
+    drive["temperature_crit_c"] = as_int(temp.get("critical_limit_max")) or defaults[1]
 
-    no_smart = not data.get("smart_status") and not nvme and not data.get("ata_smart_attributes")
+    no_smart = not data.get("smart_status") and not nvme and not ata_rows(data)
     if rc & BIT_OPEN_FAILED or no_smart:
         messages = smartctl_messages(data)
         if any("STANDBY" in m.upper() for m in messages) and previous:
@@ -142,7 +182,7 @@ def summarize(dev, rc, data, previous):
     if drive["smart_passed"] is False or rc & BIT_DISK_FAILING:
         flag("critical", "SMART overall health check FAILED")
 
-    cw = nvme.get("critical_warning") or 0
+    cw = as_int(nvme.get("critical_warning")) or 0
     for bit, text in NVME_CRITICAL_WARNING_BITS:
         if cw & bit:
             flag("critical", "NVMe critical warning: " + text)
@@ -166,7 +206,7 @@ def summarize(dev, rc, data, previous):
             grew = f" (+{drive['reallocated_sectors'] - before} since last check)"
         flag("warning", f"{drive['reallocated_sectors']} reallocated sectors{grew}")
 
-    for row in (data.get("ata_smart_attributes") or {}).get("table") or []:
+    for row in ata_rows(data):
         when = row.get("when_failed") or ""
         if when == "now":
             flag("critical", f"Attribute {row.get('name')} is below its failure threshold")
@@ -200,22 +240,88 @@ def load_previous():
         return {}
 
 
-def main():
-    previous = load_previous()
-    rc, scan = run_smartctl(["--scan-open"])
-    devices = scan.get("devices") or []
-    if not devices and rc != 0:
-        print("smartctl --scan-open failed", file=sys.stderr)
-
-    drives = []
-    for dev in devices:
+def read_drive(dev, previous):
+    """Read and summarize one drive. Never raises: a drive whose data can't be
+    understood is reported as unavailable so the other drives still get
+    checked. Returns (summary, smartctl exit code, raw smartctl data)."""
+    rc, data = 0, {}
+    try:
         args = ["-a", "-n", "standby"]
         if dev.get("type"):
             args += ["-d", dev["type"]]
         rc, data = run_smartctl(args + [dev["name"]])
+        if not isinstance(data, dict):
+            raise TypeError("smartctl output is not a JSON object")
         key = data.get("serial_number") or dev["name"]
         prev = previous.get(key) or previous.get(dev["name"])
-        drives.append(summarize(dev, rc, data, prev))
+        return summarize(dev, rc, data, prev), rc, data
+    except Exception as e:  # noqa: BLE001 -- isolate any one drive's failure
+        print(f"disk-health: {dev.get('name')}: {type(e).__name__}: {e}", file=sys.stderr)
+        return {
+            "device": dev.get("name", "?"),
+            "type": dev.get("type", ""),
+            "protocol": dev.get("protocol", ""),
+            "model": (data.get("model_name") if isinstance(data, dict) else None) or dev.get("name", "?"),
+            "serial": (data.get("serial_number") if isinstance(data, dict) else None) or "",
+            "status": "unavailable",
+            "problems": [],
+            "note": f"Couldn't read this drive's SMART data ({type(e).__name__}). "
+                    "Please report it: sudo disk-health-collect --report",
+        }, rc, data
+
+
+def scan_devices():
+    rc, scan = run_smartctl(["--scan-open"])
+    devices = [d for d in (scan.get("devices") or []) if isinstance(d, dict) and d.get("name")]
+    if not devices and rc != 0:
+        print("smartctl --scan-open failed", file=sys.stderr)
+    return devices, scan
+
+
+REDACT_KEYS = {"serial_number", "serial", "wwn", "logical_unit_id", "eui64", "nguid"}
+
+
+def redact(value):
+    if isinstance(value, dict):
+        return {k: ("REDACTED" if k in REDACT_KEYS else redact(v)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [redact(v) for v in value]
+    return value
+
+
+def report():
+    """Print everything needed to reproduce this machine's results in the
+    test suite (tests/fixtures/), minus serial numbers and WWNs."""
+    devices, scan = scan_devices()
+    entries = []
+    version = ""
+    for dev in devices:
+        summary, rc, data = read_drive(dev, {})
+        if isinstance(data, dict) and not version:
+            version = " ".join(str(v) for v in ((data.get("smartctl") or {}).get("version") or []))
+        entries.append({"device": dev["name"], "smartctl_exit": rc,
+                        "smartctl": redact(data), "summary": redact(summary)})
+    json.dump({
+        "disk_health_report": 1,
+        "collector_version": VERSION,
+        "smartctl_version": version,
+        "drivedb": "updated" if os.path.isfile(DRIVEDB) else "built-in",
+        "scan": redact(scan),
+        "drives": entries,
+    }, sys.stdout, indent=2)
+    print()
+
+
+def main():
+    if sys.argv[1:] == ["--report"]:
+        return report()
+    if sys.argv[1:]:
+        print("Usage: disk-health-collect [--report]", file=sys.stderr)
+        return 2
+
+    previous = load_previous()
+    devices, _ = scan_devices()
+    drives = [read_drive(dev, previous)[0] for dev in devices]
 
     now = time.time()
     status = max((d["status"] for d in drives), key=lambda s: LEVELS[s], default="ok")
@@ -238,4 +344,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

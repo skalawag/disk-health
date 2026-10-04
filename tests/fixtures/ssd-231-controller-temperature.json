@@ -1,0 +1,57 @@
+{
+  "disk_health_report": 1,
+  "note": "231 is a temperature on some SSDs: must not read as lifespan",
+  "scan": {
+    "devices": [
+      {
+        "name": "/dev/sda",
+        "type": "sat",
+        "protocol": "ATA"
+      }
+    ]
+  },
+  "drives": [
+    {
+      "device": "/dev/sda",
+      "smartctl_exit": 0,
+      "smartctl": {
+        "device": {
+          "name": "/dev/sda",
+          "protocol": "ATA"
+        },
+        "model_name": "SSD with 231 as temperature",
+        "serial_number": "REDACTED",
+        "smart_status": {
+          "passed": true
+        },
+        "temperature": {
+          "current": 35
+        },
+        "power_on_time": {
+          "hours": 1000
+        },
+        "ata_smart_attributes": {
+          "table": [
+            {
+              "id": 231,
+              "name": "Controller_Temperature",
+              "value": 8,
+              "worst": 8,
+              "thresh": 0,
+              "when_failed": "",
+              "raw": {
+                "value": 45
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "/dev/sda": {
+      "status": "ok",
+      "life_used_pct": null
+    }
+  }
+}

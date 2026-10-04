@@ -23,6 +23,8 @@ files=(
   "/usr/local/bin/disk-health-uninstall:setup.sh:755"
   "/etc/systemd/system/disk-health.service:disk-health.service:644"
   "/etc/systemd/system/disk-health.timer:disk-health.timer:644"
+  "/etc/systemd/system/disk-health-drivedb.service:disk-health-drivedb.service:644"
+  "/etc/systemd/system/disk-health-drivedb.timer:disk-health-drivedb.timer:644"
   "/etc/polkit-1/rules.d/50-disk-health.rules:50-disk-health.rules:644"
 )
 
@@ -43,6 +45,8 @@ status() {
     echo missing
   elif ! systemctl is-enabled --quiet disk-health.timer 2>/dev/null; then
     echo missing
+  elif ! systemctl is-enabled --quiet disk-health-drivedb.timer 2>/dev/null; then
+    echo outdated
   elif [[ $(checksums) != "$(cat "$stamp")" ]]; then
     echo outdated
   else
@@ -62,14 +66,17 @@ install_components() {
   checksums >"$stamp"
   chmod 644 "$stamp"
   systemctl daemon-reload
-  systemctl enable --now disk-health.timer
+  systemctl enable --now disk-health.timer disk-health-drivedb.timer
+  # Fetch a current drive database in the background (needs network; a
+  # failure just leaves smartctl's built-in one in use), then check drives now.
+  systemctl start --no-block disk-health-drivedb.service
   systemctl start disk-health.service
   echo "Disk health system components installed; first check done."
 }
 
 remove_components() {
   need_root remove
-  systemctl disable --now disk-health.timer 2>/dev/null || true
+  systemctl disable --now disk-health.timer disk-health-drivedb.timer 2>/dev/null || true
   local entry dest
   for entry in "${files[@]}"; do
     dest=${entry%%:*}

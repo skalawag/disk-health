@@ -1,0 +1,57 @@
+{
+  "disk_health_report": 1,
+  "note": "177 Wear_Leveling_Count: normalized value counts down from 100",
+  "scan": {
+    "devices": [
+      {
+        "name": "/dev/sda",
+        "type": "sat",
+        "protocol": "ATA"
+      }
+    ]
+  },
+  "drives": [
+    {
+      "device": "/dev/sda",
+      "smartctl_exit": 0,
+      "smartctl": {
+        "device": {
+          "name": "/dev/sda",
+          "protocol": "ATA"
+        },
+        "model_name": "Samsung-style SATA SSD",
+        "serial_number": "REDACTED",
+        "smart_status": {
+          "passed": true
+        },
+        "temperature": {
+          "current": 35
+        },
+        "power_on_time": {
+          "hours": 1000
+        },
+        "ata_smart_attributes": {
+          "table": [
+            {
+              "id": 177,
+              "name": "Wear_Leveling_Count",
+              "value": 97,
+              "worst": 97,
+              "thresh": 0,
+              "when_failed": "",
+              "raw": {
+                "value": 40
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "/dev/sda": {
+      "status": "ok",
+      "life_used_pct": 3
+    }
+  }
+}

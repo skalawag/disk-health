@@ -1,0 +1,68 @@
+{
+  "disk_health_report": 1,
+  "note": "202 is an error counter on some HDDs: must not read as lifespan",
+  "scan": {
+    "devices": [
+      {
+        "name": "/dev/sda",
+        "type": "sat",
+        "protocol": "ATA"
+      }
+    ]
+  },
+  "drives": [
+    {
+      "device": "/dev/sda",
+      "smartctl_exit": 0,
+      "smartctl": {
+        "device": {
+          "name": "/dev/sda",
+          "protocol": "ATA"
+        },
+        "model_name": "WD-style HDD",
+        "serial_number": "REDACTED",
+        "smart_status": {
+          "passed": true
+        },
+        "temperature": {
+          "current": 35
+        },
+        "power_on_time": {
+          "hours": 1000
+        },
+        "ata_smart_attributes": {
+          "table": [
+            {
+              "id": 202,
+              "name": "Data_Address_Mark_Errs",
+              "value": 100,
+              "worst": 100,
+              "thresh": 0,
+              "when_failed": "",
+              "raw": {
+                "value": 0
+              }
+            },
+            {
+              "id": 5,
+              "name": "Reallocated_Sector_Ct",
+              "value": 200,
+              "worst": 200,
+              "thresh": 0,
+              "when_failed": "",
+              "raw": {
+                "value": 0
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "/dev/sda": {
+      "status": "ok",
+      "life_used_pct": null
+    }
+  }
+}

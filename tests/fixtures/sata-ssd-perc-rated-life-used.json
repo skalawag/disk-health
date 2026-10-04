@@ -1,0 +1,57 @@
+{
+  "disk_health_report": 1,
+  "note": "202 named *_Used carries percent used in the raw value",
+  "scan": {
+    "devices": [
+      {
+        "name": "/dev/sda",
+        "type": "sat",
+        "protocol": "ATA"
+      }
+    ]
+  },
+  "drives": [
+    {
+      "device": "/dev/sda",
+      "smartctl_exit": 0,
+      "smartctl": {
+        "device": {
+          "name": "/dev/sda",
+          "protocol": "ATA"
+        },
+        "model_name": "Crucial-style SSD",
+        "serial_number": "REDACTED",
+        "smart_status": {
+          "passed": true
+        },
+        "temperature": {
+          "current": 35
+        },
+        "power_on_time": {
+          "hours": 1000
+        },
+        "ata_smart_attributes": {
+          "table": [
+            {
+              "id": 202,
+              "name": "Perc_Rated_Life_Used",
+              "value": 15,
+              "worst": 15,
+              "thresh": 0,
+              "when_failed": "",
+              "raw": {
+                "value": 85
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "/dev/sda": {
+      "status": "warning",
+      "life_used_pct": 85
+    }
+  }
+}

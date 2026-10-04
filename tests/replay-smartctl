@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""Stand-in for smartctl that replays a `disk-health-collect --report` file
+(path in $REPORT), so real drives' data can be re-run in the tests."""
+import json, os, sys
+
+report = json.load(open(os.environ["REPORT"]))
+args = sys.argv[1:]
+if "--scan-open" in args:
+    print(json.dumps(report["scan"]))
+    sys.exit(0)
+for drive in report["drives"]:
+    if drive["device"] == args[-1]:
+        print(json.dumps(drive["smartctl"]))
+        sys.exit(drive.get("smartctl_exit", 0))
+print("{}")
+sys.exit(2)

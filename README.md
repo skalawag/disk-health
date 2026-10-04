@@ -26,8 +26,9 @@ Your user must be in the `wheel` group for **Check Now** to work without a passw
 | `/usr/local/bin/disk-health-collect` | the collector (reads drives, never writes to them) |
 | `/usr/local/bin/disk-health-uninstall` | removes all of the system components below |
 | `/etc/systemd/system/disk-health.{service,timer}` | runs the collector 2 min after boot and hourly |
+| `/etc/systemd/system/disk-health-drivedb.{service,timer}` | weekly, signature-checked update of smartmontools' drive database into `/var/lib/disk-health/drivedb.h` (the packaged copy is left alone) |
 | `/etc/polkit-1/rules.d/50-disk-health.rules` | lets `wheel` users start `disk-health.service` without a password |
-| `/var/lib/disk-health/` | `status.json` (results) and `installed.sha256` (what's installed) |
+| `/var/lib/disk-health/` | `status.json` (results), `drivedb.h` (current drive database), `installed.sha256` (what's installed) |
 | `~/.config/omarchy/extensions/omarchy-menu.jsonc` | one line for the menu entry (backup made first; hides itself if the plugin is removed) |
 
 Setup runs `system/setup.sh install` from the plugin folder through `pkexec`.
@@ -80,21 +81,46 @@ hide it) show as "No SMART data" and never alert.
 
 ## Hardware coverage
 
-Tested on real hardware with an NVMe SSD and a USB-attached SATA hard drive. SATA
-SSD wear is read from `endurance_used` when smartctl provides it, otherwise from
-common vendor attributes (231, 233, 177, 202); that path hasn't been tried on a real
-drive. RAID controllers, multiple NVMe namespaces, and SAS drives are untested.
-Reports from other hardware are welcome; `sudo smartctl --json -a /dev/<drive>`
-output is what a test fixture needs.
+**Status: 0.9, beta.** Tested on real hardware with an NVMe SSD and a USB-attached
+SATA hard drive; other drive types are covered by the test fixtures below and by
+the design, not yet by real-world use.
+
+The design choices that matter for drives nobody here has tried:
+
+- **The drive's own verdict comes first.** SMART pass/fail and the NVMe critical
+  warning flags are standard across vendors.
+- **Attributes are read by name, not number.** smartctl names each attribute from
+  its [drive database](https://www.smartmontools.org/wiki/DriveDB), which a weekly
+  timer keeps current. The same number can mean different things on different
+  drives (231 is lifespan on some SSDs and a controller temperature on others), so
+  lifespan is only shown when the vendor-neutral endurance indicator or a known
+  wear attribute name is present. Otherwise the dial shows a dash rather than a guess.
+- **One odd drive can't break the rest.** A drive whose data can't be understood
+  shows as unavailable with a note; every other drive is still checked.
+
+### Reporting a drive
+
+If a drive shows something wrong, or "Couldn't read this drive", please open an
+issue with the output of:
+
+    sudo disk-health-collect --report > disk-health-report.json
+
+It contains smartctl's raw data for every drive and what the plugin concluded,
+with serial numbers and WWNs removed. Look it over before posting.
 
 ## Development
 
-    tests/run.sh                  # collector against fake drives, manifest validation
+    tests/run.sh                  # collector against fake drives and fixtures, manifest validation
     ./install.sh                  # deploy this working copy, incl. uncommitted edits
     ./uninstall.sh                # remove everything (the repo stays)
     omarchy-shell diskhealth simulate   # fake alert → click → panel
     omarchy-shell diskhealth status     # what the alert service last saw
     omarchy-shell shell summon skalawag.disk-health '{"statusPath":"/path/to/status.json"}'
+
+`tests/fixtures/` holds `--report` files that `tests/replay-smartctl` feeds back
+through the collector, each with an `expect` block (per device: `status`,
+`life_used_pct`, `note_contains`). A drive from a bug report becomes a test by
+saving its report there and adding the expectation.
 
 `install.sh` refuses to overwrite a copy installed with `omarchy plugin add`; use
 `omarchy plugin update` for that, or remove it first.

@@ -1,0 +1,60 @@
+{
+  "disk_health_report": 1,
+  "note": "the vendor-neutral endurance indicator wins over vendor attributes",
+  "scan": {
+    "devices": [
+      {
+        "name": "/dev/sda",
+        "type": "sat",
+        "protocol": "ATA"
+      }
+    ]
+  },
+  "drives": [
+    {
+      "device": "/dev/sda",
+      "smartctl_exit": 0,
+      "smartctl": {
+        "device": {
+          "name": "/dev/sda",
+          "protocol": "ATA"
+        },
+        "model_name": "SSD with device statistics",
+        "serial_number": "REDACTED",
+        "smart_status": {
+          "passed": true
+        },
+        "temperature": {
+          "current": 35
+        },
+        "power_on_time": {
+          "hours": 1000
+        },
+        "ata_smart_attributes": {
+          "table": [
+            {
+              "id": 177,
+              "name": "Wear_Leveling_Count",
+              "value": 50,
+              "worst": 50,
+              "thresh": 0,
+              "when_failed": "",
+              "raw": {
+                "value": 900
+              }
+            }
+          ]
+        },
+        "endurance_used": {
+          "current_percent": 12
+        }
+      }
+    }
+  ],
+  "expect": {
+    "/dev/sda": {
+      "status": "ok",
+      "life_used_pct": 12
+    }
+  }
+}

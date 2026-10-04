@@ -1,0 +1,107 @@
+{
+  "disk_health_report": 1,
+  "note": "one unreadable drive must not stop the others being checked",
+  "scan": {
+    "devices": [
+      {
+        "name": "/dev/sda",
+        "type": "sat",
+        "protocol": "ATA"
+      },
+      {
+        "name": "/dev/sdb",
+        "type": "sat",
+        "protocol": "ATA"
+      },
+      {
+        "name": "/dev/sdc",
+        "type": "sat",
+        "protocol": "ATA"
+      }
+    ]
+  },
+  "drives": [
+    {
+      "device": "/dev/sda",
+      "smartctl_exit": 0,
+      "smartctl": {
+        "device": {
+          "name": "/dev/sda",
+          "protocol": "ATA"
+        },
+        "model_name": "Odd firmware",
+        "serial_number": "REDACTED",
+        "smart_status": {
+          "passed": true
+        },
+        "temperature": {
+          "current": "hot"
+        },
+        "power_on_time": {
+          "hours": 1000
+        },
+        "ata_smart_attributes": {
+          "table": "garbage"
+        }
+      }
+    },
+    {
+      "device": "/dev/sdb",
+      "smartctl_exit": 0,
+      "smartctl": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "device": "/dev/sdc",
+      "smartctl_exit": 0,
+      "smartctl": {
+        "device": {
+          "name": "/dev/sdc",
+          "protocol": "ATA"
+        },
+        "model_name": "Normal HDD",
+        "serial_number": "REDACTED",
+        "smart_status": {
+          "passed": true
+        },
+        "temperature": {
+          "current": 35
+        },
+        "power_on_time": {
+          "hours": 1000
+        },
+        "ata_smart_attributes": {
+          "table": [
+            {
+              "id": 5,
+              "name": "Reallocated_Sector_Ct",
+              "value": 200,
+              "worst": 200,
+              "thresh": 0,
+              "when_failed": "",
+              "raw": {
+                "value": 0
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "expect": {
+    "/dev/sda": {
+      "status": "ok",
+      "life_used_pct": null
+    },
+    "/dev/sdb": {
+      "status": "unavailable",
+      "note_contains": "Couldn't read this drive"
+    },
+    "/dev/sdc": {
+      "status": "ok"
+    }
+  }
+}

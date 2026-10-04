@@ -1,0 +1,19 @@
+[Unit]
+Description=Update the smartmontools drive database for the disk-health monitor
+Documentation=man:update-smart-drivedb(8)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Signature-checked download into the plugin's own state folder; the packaged
+# /usr/share/smartmontools/drivedb.h is left alone. disk-health-collect uses
+# this copy when it exists. A failed update (e.g. offline) changes nothing.
+ExecStart=/usr/bin/update-smart-drivedb --quiet /var/lib/disk-health/drivedb.h
+StateDirectory=disk-health
+StateDirectoryMode=0755
+Nice=10
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
