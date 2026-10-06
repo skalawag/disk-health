@@ -9,7 +9,7 @@ dials for each drive.
 
 ## Install
 
-    omarchy plugin add <repo-url> --enable
+    omarchy plugin add https://github.com/skalawag/disk-health --enable
 
 Reading SMART data needs root, which a plugin can't get on its own, so there is
 a one-time setup. A notification will prompt you; click it (or run
