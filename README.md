@@ -11,6 +11,9 @@ dials for each drive.
 
     omarchy plugin add https://github.com/skalawag/disk-health --enable
 
+The plugin depends on [smartmontools](https://www.smartmontools.org/) (`smartctl`)
+to read SMART data. Setup installs it with pacman if it's missing.
+
 Reading SMART data needs root, which a plugin can't get on its own, so there is
 a one-time setup. A notification will prompt you; click it (or run
 `omarchy-shell shell summon skalawag.disk-health`), press **Set Up**, and enter
