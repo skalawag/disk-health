@@ -1,6 +1,6 @@
 #!/bin/bash
 # Developer install: deploy this working copy (including uncommitted edits) as
-# the skalawag.disk-health plugin, then bring the system components and menu
+# the io.github.skalawag.disk-health plugin, then bring the system components and menu
 # entry up to date. Safe to re-run.
 #
 # Regular users don't need this: `omarchy plugin add <repo-url> --enable`, then

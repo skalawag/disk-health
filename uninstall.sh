@@ -1,7 +1,7 @@
 #!/bin/bash
 # Remove the plugin, its system components, menu entry and state. The repo
 # stays. (Users who installed from the marketplace: press "Remove System
-# Components" in the panel, then `omarchy plugin remove skalawag.disk-health`.)
+# Components" in the panel, then `omarchy plugin remove io.github.skalawag.disk-health`.)
 set -euo pipefail
 repo=$(dirname "$(readlink -f "$0")")
 id=$(jq -r .id "$repo/manifest.json")

@@ -29,7 +29,7 @@ Item {
 
   readonly property string defaultStatusPath: "/var/lib/disk-health/status.json"
   // A summon payload may point at another file, for testing:
-  // omarchy-shell shell summon skalawag.disk-health '{"statusPath":"/tmp/x.json"}'
+  // omarchy-shell shell summon io.github.skalawag.disk-health '{"statusPath":"/tmp/x.json"}'
   property string statusPath: defaultStatusPath
 
   readonly property string setupScript: pluginPath("system/setup.sh")
@@ -96,7 +96,7 @@ Item {
 
   function dismiss() {
     if (shell && typeof shell.hide === "function")
-      shell.hide((manifest && manifest.id) || "skalawag.disk-health")
+      shell.hide((manifest && manifest.id) || "io.github.skalawag.disk-health")
     else close()
   }
 

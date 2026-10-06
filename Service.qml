@@ -7,7 +7,7 @@ import qs.Commons
 // (disk-health.timer → /usr/local/bin/disk-health-collect) writes
 // /var/lib/disk-health/status.json hourly; this only reads it and raises a
 // notification when a drive picks up a problem it hasn't already alerted on.
-// Clicking the notification summons the skalawag.disk-health panel.
+// Clicking the notification summons the io.github.skalawag.disk-health panel.
 //
 // Problems are compared with their numbers masked, so a temperature drifting
 // 57 → 58°C doesn't re-alert, but a new kind of problem, a worse level, or
@@ -28,7 +28,7 @@ Item {
   readonly property string statusPath: "/var/lib/disk-health/status.json"
   readonly property string statePath: Quickshell.env("HOME") + "/.local/state/disk-health/alerted.json"
   readonly property int staleSeconds: 26 * 3600
-  readonly property var openArgv: ["omarchy-shell", "shell", "summon", "skalawag.disk-health"]
+  readonly property var openArgv: ["omarchy-shell", "shell", "summon", "io.github.skalawag.disk-health"]
   readonly property string glyph: "󰋊"
   readonly property string setupScript: decodeURIComponent(Qt.resolvedUrl("system/setup.sh").toString().replace(/^file:\/\//, ""))
 

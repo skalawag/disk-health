@@ -9,7 +9,7 @@
 set -euo pipefail
 
 menu_file="$HOME/.config/omarchy/extensions/omarchy-menu.jsonc"
-entry='  "system.disk-health": {"icon":"󰋊","label":"Disk Health","aliases":["disk-health","smart"],"description":"SMART status of every drive","when":"[[ -d ~/.config/omarchy/plugins/skalawag.disk-health ]]","action":"omarchy-shell shell summon skalawag.disk-health"},'
+entry='  "system.disk-health": {"icon":"󰋊","label":"Disk Health","aliases":["disk-health","smart"],"description":"SMART status of every drive","when":"[[ -d ~/.config/omarchy/plugins/io.github.skalawag.disk-health ]]","action":"omarchy-shell shell summon io.github.skalawag.disk-health"},'
 
 case ${1:-} in
   add)

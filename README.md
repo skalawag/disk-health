@@ -16,7 +16,7 @@ to read SMART data. Setup installs it with pacman if it's missing.
 
 Reading SMART data needs root, which a plugin can't get on its own, so there is
 a one-time setup. A notification will prompt you; click it (or run
-`omarchy-shell shell summon skalawag.disk-health`), press **Set Up**, and enter
+`omarchy-shell shell summon io.github.skalawag.disk-health`), press **Set Up**, and enter
 your password. After that, open the panel from **Menu → System → Disk Health**.
 
 Your user must be in the `wheel` group for **Check Now** to work without a password.
@@ -39,7 +39,7 @@ Read it before you run it.
 
 ### Updating
 
-    omarchy plugin update skalawag.disk-health
+    omarchy plugin update io.github.skalawag.disk-health
 
 If the update changed the system components, you'll get a notification and the
 panel will show an **Update** button.
@@ -47,7 +47,7 @@ panel will show an **Update** button.
 ### Removing
 
 1. In the panel, click **Remove System Components** (twice, to confirm) and authenticate.
-2. `omarchy plugin remove skalawag.disk-health`
+2. `omarchy plugin remove io.github.skalawag.disk-health`
 
 If you removed the plugin first, `sudo disk-health-uninstall` removes the system
 components. `smartmontools` stays installed (`sudo pacman -R smartmontools`), and
@@ -118,7 +118,7 @@ with serial numbers and WWNs removed. Look it over before posting.
     ./uninstall.sh                # remove everything (the repo stays)
     omarchy-shell diskhealth simulate   # fake alert → click → panel
     omarchy-shell diskhealth status     # what the alert service last saw
-    omarchy-shell shell summon skalawag.disk-health '{"statusPath":"/path/to/status.json"}'
+    omarchy-shell shell summon io.github.skalawag.disk-health '{"statusPath":"/path/to/status.json"}'
 
 `tests/fixtures/` holds `--report` files that `tests/replay-smartctl` feeds back
 through the collector, each with an `expect` block (per device: `status`,

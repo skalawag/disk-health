@@ -1,5 +1,5 @@
 #!/bin/bash
-# Root-side setup for the skalawag.disk-health Omarchy plugin.
+# Root-side setup for the io.github.skalawag.disk-health Omarchy plugin.
 #
 #   setup.sh status    ok | outdated | missing   (no root needed)
 #   setup.sh install   install or update the system components (root)
